@@ -3,13 +3,14 @@ from PySide6.QtCore import QRunnable, Slot, QThreadPool
 import torch
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
-from diffusers import StableDiffusionImg2ImgPipeline, DPMSolverMultistepScheduler
+from diffusers import StableDiffusionPipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, DDIMScheduler, DDPMScheduler, DPMSolverMultistepScheduler, DPMSolverSinglestepScheduler
 
 class IterativeRemixWorker(QRunnable):
-    def __init__(self, image, model, prompt, negative_prompt, noise_strength, guidance_scale, inference_step_count, image_count=1, iterations=1):
+    def __init__(self, image, model, scheduler, prompt, negative_prompt, noise_strength, guidance_scale, inference_step_count, image_count=1, iterations=1):
         super(IterativeRemixWorker, self).__init__()
         self._image = image.resize((512, 512))
         self._model = model
+        self._scheduler = scheduler
         self._prompt = prompt
         self._negative_prompt = negative_prompt
         self._noise_strength = noise_strength
@@ -22,7 +23,25 @@ class IterativeRemixWorker(QRunnable):
     def run(self):
         #Setup pipeline
         pipeline = StableDiffusionImg2ImgPipeline.from_pretrained(self._model, torch_dtype=torch.float16)
-        pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+        
+        #Determine Scheduler
+        if self._scheduler == "EulerAncestralDiscreteScheduler":
+            pipeline.scheduler = EulerAncestralDiscreteScheduler.from_config(pipeline.scheduler.config)
+        elif self._scheduler == "EulerDiscreteScheduler":
+            pipeline.scheduler = EulerDiscreteScheduler.from_config(pipeline.scheduler.config)
+        elif self._scheduler == "DDIMScheduler":
+            pipeline.scheduler = DDIMScheduler.from_config(pipeline.scheduler.config)
+        elif self._scheduler == "DDPMScheduler":
+            pipeline.scheduler = DDPMScheduler.from_config(pipeline.scheduler.config)
+        elif self._scheduler == "DPMSolverMultistepScheduler":
+            pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config)
+        elif self._scheduler == "DPMSolverSinglestepScheduler":
+            pipeline.scheduler = DPMSolverSinglestepScheduler.from_config(pipeline.scheduler.config)
+        else:
+            print(f"Pipeline not found! Defaulting to Euler Ancestral")
+            pipeline.scheduler = EulerAncestralDiscreteScheduler.from_config(pipeline.scheduler.config)
+
+        #Send to GPU
         pipeline = pipeline.to("cuda")
 
         #Init the input images storage
@@ -47,6 +66,7 @@ class IterativeRemixWorker(QRunnable):
                 image = images[i]
                 image_metadata = PngInfo()
                 image_metadata.add_text("Model", str(self._model))
+                image_metadata.add_text("Scheduler", str(self._scheduler))
                 image_metadata.add_text("Prompt", str(self._prompt))
                 image_metadata.add_text("Negative Prompt", str(self._negative_prompt))
                 image_metadata.add_text("Guidance Scale", str(self._guidance_scale))

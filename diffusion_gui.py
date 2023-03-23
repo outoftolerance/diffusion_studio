@@ -43,18 +43,58 @@ class MainWindow(QMainWindow):
             },
         ]
 
+        self.schedulers = [
+            {
+                "name": "Euler Ancestral",
+                "class": "EulerAncestralDiscreteScheduler",
+            },
+            {
+                "name": "Euler",
+                "class": "EulerDiscreteScheduler",
+            },
+            {
+                "name": "DDIM",
+                "class": "DDIMScheduler",
+            },
+            {
+                "name": "DDPM",
+                "class": "DDPMScheduler",
+            },
+            {
+                "name": "Multistep DPM Solver",
+                "class": "DPMSolverMultistepScheduler",
+            },
+            {
+                "name": "Singlestep DPM Solver",
+                "class": "DPMSolverSinglestepScheduler",
+            },
+        ]
+
         self.threadpool = QThreadPool()
+
+        ### IMAGE LOADER
+        ### -------------------------------------------------------------------------
         self.label_load_image = QLabel("Load Image:")
 
         self.lineedit_load_image = QLineEdit()
         self.button_load_image = QPushButton("Load Image")
         self.button_load_image.clicked.connect(self.load_image)
 
+        ### DIFFUSION MODEL
+        ### -------------------------------------------------------------------------
         self.label_diffusion_model = QLabel("Diffusion Model:")
 
         self.dropdown_diffusion_model = QComboBox()
         for model in self.diffusion_models:
             self.dropdown_diffusion_model.addItem(model["name"])
+
+        ### SCHEDULER
+        ### -------------------------------------------------------------------------
+        self.label_scheduler = QLabel("Scheduler:")
+
+        self.dropdown_scheduler = QComboBox()
+        for scheduler in self.schedulers:
+            self.dropdown_scheduler.addItem(scheduler["name"])
 
         self.label_prompts = QLabel("Prompts:")
 
@@ -81,7 +121,7 @@ class MainWindow(QMainWindow):
 
         self.lineedit_noise_strength = QLineEdit()
         self.lineedit_noise_strength.setText("40")
-        self.lineedit_noise_strength.setMaximumWidth(30)
+        self.lineedit_noise_strength.setMaximumWidth(25)
 
         self.layout_noise_strength.addWidget(self.slider_noise_strength)
         self.layout_noise_strength.addWidget(self.lineedit_noise_strength)
@@ -105,7 +145,7 @@ class MainWindow(QMainWindow):
 
         self.lineedit_guidance_scale = QLineEdit()
         self.lineedit_guidance_scale.setText("70")
-        self.lineedit_guidance_scale.setMaximumWidth(30)
+        self.lineedit_guidance_scale.setMaximumWidth(25)
 
         self.layout_guidance_scale.addWidget(self.slider_guidance_scale)
         self.layout_guidance_scale.addWidget(self.lineedit_guidance_scale)
@@ -120,7 +160,7 @@ class MainWindow(QMainWindow):
 
         self.slider_inference_step_count = QSlider(Qt.Horizontal)
         self.slider_inference_step_count.setMinimum(8)
-        self.slider_inference_step_count.setMaximum(64)
+        self.slider_inference_step_count.setMaximum(128)
         self.slider_inference_step_count.setTickInterval(8)
         self.slider_inference_step_count.setSingleStep(1)
         self.slider_inference_step_count.setTickPosition(QSlider.TicksBelow)
@@ -128,8 +168,8 @@ class MainWindow(QMainWindow):
         self.slider_inference_step_count.valueChanged.connect(self.ui_slider_update)
 
         self.lineedit_inference_step_count = QLineEdit()
-        self.lineedit_inference_step_count.setText("32")
-        self.lineedit_inference_step_count.setMaximumWidth(48)
+        self.lineedit_inference_step_count.setText("48")
+        self.lineedit_inference_step_count.setMaximumWidth(25)
 
         self.layout_inference_step_count.addWidget(self.slider_inference_step_count)
         self.layout_inference_step_count.addWidget(self.lineedit_inference_step_count)
@@ -179,6 +219,8 @@ class MainWindow(QMainWindow):
         self.layout_main_window.addWidget(self.button_load_image)
         self.layout_main_window.addWidget(self.label_diffusion_model)
         self.layout_main_window.addWidget(self.dropdown_diffusion_model)
+        self.layout_main_window.addWidget(self.label_scheduler)
+        self.layout_main_window.addWidget(self.dropdown_scheduler)
         self.layout_main_window.addWidget(self.label_prompts)
         self.layout_main_window.addWidget(self.textarea_prompt)
         self.layout_main_window.addWidget(self.textarea_negative_prompt)
@@ -236,6 +278,12 @@ class MainWindow(QMainWindow):
                 if model["repo"] == loaded_model:
                     self.dropdown_diffusion_model.setCurrentText(model["name"])
 
+        if "Scheduler" in image.info:
+            loaded_scheduler = image.info["Scheduler"]
+            for scheduler in self.schedulers:
+                if scheduler["class"] == loaded_model:
+                    self.dropdown_scheduler.setCurrentText(scheduler["name"])
+
         if "Prompt" in image.info:
             prompt = image.info["Prompt"]
             self.textarea_prompt.setPlainText(prompt)
@@ -261,15 +309,25 @@ class MainWindow(QMainWindow):
 
         return
 
-    def execute_diffusion(self):
-        #Get model repo
+    def get_diffusion_model_from_name(self, name):
         for model in self.diffusion_models:
             if model["name"] == self.dropdown_diffusion_model.currentText():
-                break
+                return model["repo"]
 
+        return None
+
+    def get_scheduler_from_name(self, name):
+        for scheduler in self.schedulers:
+            if scheduler["name"] == self.dropdown_scheduler.currentText():
+                return scheduler["class"]
+
+        return None
+
+    def execute_diffusion(self):
         #Configure worker
         diffusion_worker = DiffusionWorker(
-            model = model["repo"],
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
@@ -284,15 +342,11 @@ class MainWindow(QMainWindow):
         #Get the image
         image = Image.open(self.lineedit_load_image.text()).convert("RGB")
 
-        #Get model repo
-        for model in self.diffusion_models:
-            if model["name"] == self.dropdown_diffusion_model.currentText():
-                break
-
         #Configure worker
         remix_worker = RemixWorker(
             image = image,
-            model = model["repo"],
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
@@ -308,15 +362,11 @@ class MainWindow(QMainWindow):
         #Get the image
         image = Image.open(self.lineedit_load_image.text()).convert("RGB")
 
-        #Get model repo
-        for model in self.diffusion_models:
-            if model["name"] == self.dropdown_diffusion_model.currentText():
-                break
-
         #Configure worker
         iterative_remix_worker = IterativeRemixWorker(
             image = image,
-            model = model["repo"],
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
