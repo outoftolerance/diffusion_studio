@@ -103,6 +103,27 @@ class MainWindow(QMainWindow):
         self.textarea_negative_prompt =QPlainTextEdit()
         self.textarea_negative_prompt.setPlaceholderText("Negative Prompt")
 
+        ### SEED
+        ### -------------------------------------------------------------------------
+        self.label_seed = QLabel("Seed:")
+
+        self.lineedit_seed = QLineEdit()
+
+        self.widget_seed_lock = QWidget()
+        self.layout_seed_lock = QHBoxLayout()
+        self.layout_seed_lock.setContentsMargins(0,0,0,0)
+
+        self.label_seed_lock = QLabel("Lock Seed:")
+        self.label_seed_lock.setAlignment(Qt.AlignLeft)
+        self.checkbox_seed_lock = QCheckBox()
+
+        self.layout_seed_lock.addWidget(self.label_seed_lock)
+        self.layout_seed_lock.addStretch()
+        self.layout_seed_lock.addWidget(self.checkbox_seed_lock)
+
+        self.widget_seed_lock.setLayout(self.layout_seed_lock)
+
+
         ### REMIX NOISE STRENGTH
         ### -------------------------------------------------------------------------
         self.widget_noise_strength = QWidget()
@@ -224,6 +245,9 @@ class MainWindow(QMainWindow):
         self.layout_main_window.addWidget(self.label_prompts)
         self.layout_main_window.addWidget(self.textarea_prompt)
         self.layout_main_window.addWidget(self.textarea_negative_prompt)
+        self.layout_main_window.addWidget(self.label_seed)
+        self.layout_main_window.addWidget(self.lineedit_seed)
+        self.layout_main_window.addWidget(self.widget_seed_lock)
         self.layout_main_window.addWidget(self.label_guidance_scale)
         self.layout_main_window.addWidget(self.widget_guidance_scale)
         self.layout_main_window.addWidget(self.label_inference_step_count)
@@ -292,6 +316,10 @@ class MainWindow(QMainWindow):
             negative_prompt = image.info["Negative Prompt"]
             self.textarea_negative_prompt.setPlainText(negative_prompt)
 
+        if "Seed" in image.info:
+            seed = image.info["Seed"]
+            self.lineedit_seed.setText(seed)
+
         if "Noise Strength" in image.info:
             noise_strength = image.info["Noise Strength"]
             noise_strength_int = int(round(float(noise_strength) * 100, 0))
@@ -330,6 +358,8 @@ class MainWindow(QMainWindow):
             scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            seed = self.lineedit_seed.text(),
+            seed_lock = self.checkbox_seed_lock.isChecked(),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
             image_count = self.spinbox_output_image_count.value(),
@@ -349,6 +379,8 @@ class MainWindow(QMainWindow):
             scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            seed = self.lineedit_seed.text(),
+            seed_lock = self.checkbox_seed_lock.isChecked(),
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
@@ -369,6 +401,8 @@ class MainWindow(QMainWindow):
             scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            seed = self.lineedit_seed.text(),
+            seed_lock = self.checkbox_seed_lock.isChecked(),
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
@@ -388,6 +422,7 @@ class MainWindow(QMainWindow):
             image = image,
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            seed = self.lineedit_seed.text(),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
         )

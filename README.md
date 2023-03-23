@@ -17,9 +17,10 @@ python diffusion_gui.py
 
 # Functionality
 
-## Model Selection
+## Model Setup
 
 - **Diffusion Model:** Dropdown selection box of some popular diffusion models from the HuggingFace repository.
+- **Scheduler:** Dropdown selection box of some popular diffusion schedulers. This is a subset of what the diffusers library supports but is what most people seem to be using most of the time.
 
 ## Prompts
 
@@ -28,6 +29,8 @@ python diffusion_gui.py
 
 ## Diffusion Settings
 
+- **Seed:** The input seed, integer in ASCII. Doesn't support hex at this time. Will auto-increment the seed by 1 for each of the output images.
+- **Lock Seed:** If checked, will lock the seed for each of the output images. Implemented for future prompt mixing with knowng good seed.
 - **Guidance Scale:** How close you want the model to stick to your prompt, if it's generating output that you like then lower this value to stick closely to it when remixing.
 - **Inference Step Count:** The number of inference steps to perform during *Generation* or *Remixing*
 - **Output Image Count:** Sets the number of output images from all actions except upscaling. This is limited from 1-4 to prevent processing times shooting off to the moon with high output image counts.
