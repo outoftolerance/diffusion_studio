@@ -1,22 +1,26 @@
 import sys, time
 
 from PIL import Image
-from PIL.ImageQT import ImageQT
 
 from PySide6.QtCore import Qt, QRunnable, Slot, QThreadPool 
 from PySide6.QtWidgets import *
 
 from diffusion_worker import DiffusionWorker
 from remix_worker import RemixWorker
+from iterative_remix_worker import IterativeRemixWorker
 from upscale_worker import UpscaleWorker
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Open Dreamer App")
+        self.setWindowTitle("Diffusion GUI")
 
         self.diffusion_models = [
+            {
+                "name": "Stable Diffusion V1.5",
+                "repo": "runwayml/stable-diffusion-v1-5",
+            },
             {
                 "name": "Stable Diffusion V2.1",
                 "repo": "stabilityai/stable-diffusion-2-1",
@@ -59,6 +63,11 @@ class MainWindow(QMainWindow):
         self.textarea_negative_prompt =QPlainTextEdit()
         self.textarea_negative_prompt.setPlaceholderText("Negative Prompt")
 
+        ### REMIX NOISE STRENGTH
+        ### -------------------------------------------------------------------------
+        self.widget_noise_strength = QWidget()
+        self.layout_noise_strength = QHBoxLayout()
+
         self.label_noise_strength = QLabel("Remix Noise Strength:")
 
         self.slider_noise_strength = QSlider(Qt.Horizontal)
@@ -68,6 +77,20 @@ class MainWindow(QMainWindow):
         self.slider_noise_strength.setSingleStep(10)
         self.slider_noise_strength.setTickPosition(QSlider.TicksBelow)
         self.slider_noise_strength.setValue(40)
+        self.slider_noise_strength.valueChanged.connect(self.ui_slider_update)
+
+        self.lineedit_noise_strength = QLineEdit()
+        self.lineedit_noise_strength.setText("40")
+        self.lineedit_noise_strength.setMaximumWidth(30)
+
+        self.layout_noise_strength.addWidget(self.slider_noise_strength)
+        self.layout_noise_strength.addWidget(self.lineedit_noise_strength)
+        self.widget_noise_strength.setLayout(self.layout_noise_strength)
+
+        ### GUIDANCE SCALE
+        ### -------------------------------------------------------------------------
+        self.widget_guidance_scale = QWidget()
+        self.layout_guidance_scale = QHBoxLayout()
 
         self.label_guidance_scale = QLabel("Guidance Scale:")
 
@@ -78,9 +101,20 @@ class MainWindow(QMainWindow):
         self.slider_guidance_scale.setSingleStep(10)
         self.slider_guidance_scale.setTickPosition(QSlider.TicksBelow)
         self.slider_guidance_scale.setValue(70)
+        self.slider_guidance_scale.valueChanged.connect(self.ui_slider_update)
 
+        self.lineedit_guidance_scale = QLineEdit()
+        self.lineedit_guidance_scale.setText("70")
+        self.lineedit_guidance_scale.setMaximumWidth(30)
+
+        self.layout_guidance_scale.addWidget(self.slider_guidance_scale)
+        self.layout_guidance_scale.addWidget(self.lineedit_guidance_scale)
+        self.widget_guidance_scale.setLayout(self.layout_guidance_scale)
+
+        ### INFERENCE STEP COUNT
+        ### -------------------------------------------------------------------------
         self.widget_inference_step_count = QWidget()
-        self.layout_infernce_step_count = QHBoxLayout()
+        self.layout_inference_step_count = QHBoxLayout()
 
         self.label_inference_step_count = QLabel("Inference Step Count:")
 
@@ -90,17 +124,53 @@ class MainWindow(QMainWindow):
         self.slider_inference_step_count.setTickInterval(8)
         self.slider_inference_step_count.setSingleStep(1)
         self.slider_inference_step_count.setTickPosition(QSlider.TicksBelow)
-        self.slider_inference_step_count.setValue(32)
+        self.slider_inference_step_count.setValue(48)
+        self.slider_inference_step_count.valueChanged.connect(self.ui_slider_update)
 
+        self.lineedit_inference_step_count = QLineEdit()
+        self.lineedit_inference_step_count.setText("32")
+        self.lineedit_inference_step_count.setMaximumWidth(48)
+
+        self.layout_inference_step_count.addWidget(self.slider_inference_step_count)
+        self.layout_inference_step_count.addWidget(self.lineedit_inference_step_count)
+        self.widget_inference_step_count.setLayout(self.layout_inference_step_count)
+
+        ### OUTPUT IMAGE COUNT
+        ### -------------------------------------------------------------------------
+        self.label_output_image_count = QLabel("Output Image Count:")
+
+        self.spinbox_output_image_count = QSpinBox()
+        self.spinbox_output_image_count.setMinimum(1)
+        self.spinbox_output_image_count.setMaximum(4)
+        self.spinbox_output_image_count.setSingleStep(1)
+        self.spinbox_output_image_count.setValue(4)
+
+        ### ITERATIVE REMIX LENGTH
+        ### -------------------------------------------------------------------------
+        self.label_iterative_remix_count = QLabel("Iterative Remix Count:")
+
+        self.spinbox_iterative_remix_count = QSpinBox()
+        self.spinbox_iterative_remix_count.setMinimum(1)
+        self.spinbox_iterative_remix_count.setMaximum(64)
+        self.spinbox_iterative_remix_count.setSingleStep(1)
+        self.spinbox_iterative_remix_count.setValue(4)
+
+        ### BUTTONS
+        ### -------------------------------------------------------------------------
         self.button_diffuse = QPushButton("Generate")
         self.button_diffuse.clicked.connect(self.execute_diffusion)
 
         self.button_remix = QPushButton("Remix")
         self.button_remix.clicked.connect(self.execute_remix)
 
+        self.button_iterative_remix = QPushButton("Iterative Remix")
+        self.button_iterative_remix.clicked.connect(self.execute_iterative_remix)
+
         self.button_upscale = QPushButton("Upscale")
         self.button_upscale.clicked.connect(self.execute_upscale)
 
+        ### CONSTRUCT MAIN LAYOUT
+        ### -------------------------------------------------------------------------
         self.layout_main_window = QVBoxLayout()
         self.widget_main_window = QWidget()
 
@@ -112,19 +182,34 @@ class MainWindow(QMainWindow):
         self.layout_main_window.addWidget(self.label_prompts)
         self.layout_main_window.addWidget(self.textarea_prompt)
         self.layout_main_window.addWidget(self.textarea_negative_prompt)
-        self.layout_main_window.addWidget(self.label_noise_strength)
-        self.layout_main_window.addWidget(self.slider_noise_strength)
         self.layout_main_window.addWidget(self.label_guidance_scale)
-        self.layout_main_window.addWidget(self.slider_guidance_scale)
+        self.layout_main_window.addWidget(self.widget_guidance_scale)
         self.layout_main_window.addWidget(self.label_inference_step_count)
-        self.layout_main_window.addWidget(self.slider_inference_step_count)
+        self.layout_main_window.addWidget(self.widget_inference_step_count)
+        self.layout_main_window.addWidget(self.label_output_image_count)
+        self.layout_main_window.addWidget(self.spinbox_output_image_count)
         self.layout_main_window.addWidget(self.button_diffuse)
+        self.layout_main_window.addWidget(self.label_noise_strength)
+        self.layout_main_window.addWidget(self.widget_noise_strength)
+        self.layout_main_window.addWidget(self.label_iterative_remix_count)
+        self.layout_main_window.addWidget(self.spinbox_iterative_remix_count)
         self.layout_main_window.addWidget(self.button_remix)
+        self.layout_main_window.addWidget(self.button_iterative_remix)
         self.layout_main_window.addWidget(self.button_upscale)
 
         self.widget_main_window.setLayout(self.layout_main_window)
 
         self.setCentralWidget(self.widget_main_window)
+
+    def ui_slider_update(self):
+        value = self.slider_noise_strength.value()
+        self.lineedit_noise_strength.setText(str(value))
+
+        value = self.slider_guidance_scale.value()
+        self.lineedit_guidance_scale.setText(str(value))
+
+        value = self.slider_inference_step_count.value()
+        self.lineedit_inference_step_count.setText(str(value))
 
     def load_image(self):
         #Get file from dialog
@@ -189,6 +274,7 @@ class MainWindow(QMainWindow):
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
+            image_count = self.spinbox_output_image_count.value(),
         )
 
         #Run worker
@@ -212,10 +298,36 @@ class MainWindow(QMainWindow):
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
+            image_count = self.spinbox_output_image_count.value(),
         )
 
         #Run worker
         self.threadpool.start(remix_worker)
+
+    def execute_iterative_remix(self):
+        #Get the image
+        image = Image.open(self.lineedit_load_image.text()).convert("RGB")
+
+        #Get model repo
+        for model in self.diffusion_models:
+            if model["name"] == self.dropdown_diffusion_model.currentText():
+                break
+
+        #Configure worker
+        iterative_remix_worker = IterativeRemixWorker(
+            image = image,
+            model = model["repo"],
+            prompt = self.textarea_prompt.toPlainText(),
+            negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
+            guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
+            inference_step_count = self.slider_inference_step_count.value(),
+            image_count = self.spinbox_output_image_count.value(),
+            iterations = self.spinbox_iterative_remix_count.value(),
+        )
+
+        #Run worker
+        self.threadpool.start(iterative_remix_worker)
 
     def execute_upscale(self):
         #Get the image

@@ -40,5 +40,5 @@ class UpscaleWorker(QRunnable):
         image_metadata.add_text("Negative Prompt", str(self._negative_prompt))
         image_metadata.add_text("Guidance Scale", str(self._guidance_scale))
         image_metadata.add_text("Inference Step Count", str(self._inference_step_count))
-        image.save(f"image_dream_upscaled.png", pnginfo=image_metadata)
+        image.save(f"image_upscale.png", pnginfo=image_metadata)
         print("Done saving.")
