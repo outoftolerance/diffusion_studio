@@ -41,6 +41,14 @@ class MainWindow(QMainWindow):
                 "name": "Lykon DreamShaper",
                 "repo": "Lykon/DreamShaper",
             },
+            {
+                "name": "Darkstorm Protogen V5.8",
+                "repo": "darkstorm2150/Protogen_x5.8_Official_Release",
+            },
+            {
+                "name": "SG161222 Realistic Vision V1.4",
+                "repo": "SG161222/Realistic_Vision_V1.4",
+            },
         ]
 
         self.schedulers = [
@@ -123,11 +131,39 @@ class MainWindow(QMainWindow):
 
         self.widget_seed_lock.setLayout(self.layout_seed_lock)
 
+        ### IMAGE SIZE
+        ### -------------------------------------------------------------------------
+        self.label_output_image_size = QLabel("Image Size:")
+
+        self.widget_output_image_size = QWidget()
+        self.layout_output_image_size = QHBoxLayout()
+        self.layout_output_image_size.setContentsMargins(0,0,0,0)
+
+        self.label_output_image_width = QLabel("Width:")
+        self.spinbox_output_image_width = QSpinBox()
+        self.spinbox_output_image_width.setMinimum(128)
+        self.spinbox_output_image_width.setMaximum(2048)
+        self.spinbox_output_image_width.setSingleStep(8)
+        self.spinbox_output_image_width.setValue(512)
+
+        self.label_output_image_height = QLabel("Height:")
+        self.spinbox_output_image_height = QSpinBox()
+        self.spinbox_output_image_height.setMinimum(128)
+        self.spinbox_output_image_height.setMaximum(2048)
+        self.spinbox_output_image_height.setSingleStep(8)
+        self.spinbox_output_image_height.setValue(512)
+
+        self.layout_output_image_size.addWidget(self.label_output_image_width)
+        self.layout_output_image_size.addWidget(self.spinbox_output_image_width)
+        self.layout_output_image_size.addWidget(self.label_output_image_height)
+        self.layout_output_image_size.addWidget(self.spinbox_output_image_height)
+        self.widget_output_image_size.setLayout(self.layout_output_image_size)
 
         ### REMIX NOISE STRENGTH
         ### -------------------------------------------------------------------------
         self.widget_noise_strength = QWidget()
         self.layout_noise_strength = QHBoxLayout()
+        self.layout_noise_strength.setContentsMargins(0,0,0,0)
 
         self.label_noise_strength = QLabel("Remix Noise Strength:")
 
@@ -152,6 +188,7 @@ class MainWindow(QMainWindow):
         ### -------------------------------------------------------------------------
         self.widget_guidance_scale = QWidget()
         self.layout_guidance_scale = QHBoxLayout()
+        self.layout_guidance_scale.setContentsMargins(0,0,0,0)
 
         self.label_guidance_scale = QLabel("Guidance Scale:")
 
@@ -176,6 +213,7 @@ class MainWindow(QMainWindow):
         ### -------------------------------------------------------------------------
         self.widget_inference_step_count = QWidget()
         self.layout_inference_step_count = QHBoxLayout()
+        self.layout_inference_step_count.setContentsMargins(0,0,0,0)
 
         self.label_inference_step_count = QLabel("Inference Step Count:")
 
@@ -198,11 +236,11 @@ class MainWindow(QMainWindow):
 
         ### OUTPUT IMAGE COUNT
         ### -------------------------------------------------------------------------
-        self.label_output_image_count = QLabel("Output Image Count:")
+        self.label_output_image_count = QLabel("Batch Size:")
 
         self.spinbox_output_image_count = QSpinBox()
         self.spinbox_output_image_count.setMinimum(1)
-        self.spinbox_output_image_count.setMaximum(4)
+        self.spinbox_output_image_count.setMaximum(32)
         self.spinbox_output_image_count.setSingleStep(1)
         self.spinbox_output_image_count.setValue(4)
 
@@ -248,18 +286,20 @@ class MainWindow(QMainWindow):
         self.layout_main_window.addWidget(self.label_seed)
         self.layout_main_window.addWidget(self.lineedit_seed)
         self.layout_main_window.addWidget(self.widget_seed_lock)
+        self.layout_main_window.addWidget(self.label_output_image_size)
+        self.layout_main_window.addWidget(self.widget_output_image_size)
+        self.layout_main_window.addWidget(self.label_output_image_count)
+        self.layout_main_window.addWidget(self.spinbox_output_image_count)
         self.layout_main_window.addWidget(self.label_guidance_scale)
         self.layout_main_window.addWidget(self.widget_guidance_scale)
         self.layout_main_window.addWidget(self.label_inference_step_count)
         self.layout_main_window.addWidget(self.widget_inference_step_count)
-        self.layout_main_window.addWidget(self.label_output_image_count)
-        self.layout_main_window.addWidget(self.spinbox_output_image_count)
         self.layout_main_window.addWidget(self.button_diffuse)
         self.layout_main_window.addWidget(self.label_noise_strength)
         self.layout_main_window.addWidget(self.widget_noise_strength)
+        self.layout_main_window.addWidget(self.button_remix)
         self.layout_main_window.addWidget(self.label_iterative_remix_count)
         self.layout_main_window.addWidget(self.spinbox_iterative_remix_count)
-        self.layout_main_window.addWidget(self.button_remix)
         self.layout_main_window.addWidget(self.button_iterative_remix)
         self.layout_main_window.addWidget(self.button_upscale)
 
@@ -320,6 +360,12 @@ class MainWindow(QMainWindow):
             seed = image.info["Seed"]
             self.lineedit_seed.setText(seed)
 
+        width = image.size[0]
+        self.spinbox_output_image_width.setValue(int(width))
+
+        height = image.size[1]
+        self.spinbox_output_image_height.setValue(int(height))
+
         if "Noise Strength" in image.info:
             noise_strength = image.info["Noise Strength"]
             noise_strength_int = int(round(float(noise_strength) * 100, 0))
@@ -360,6 +406,8 @@ class MainWindow(QMainWindow):
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
             seed_lock = self.checkbox_seed_lock.isChecked(),
+            width = int(self.spinbox_output_image_width.value()),
+            height = int(self.spinbox_output_image_height.value()),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
             image_count = self.spinbox_output_image_count.value(),
@@ -381,6 +429,8 @@ class MainWindow(QMainWindow):
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
             seed_lock = self.checkbox_seed_lock.isChecked(),
+            width = self.spinbox_output_image_width.value(),
+            height = self.spinbox_output_image_height.value(),
             noise_strength = round(self.slider_noise_strength.value()/100.0, 2),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
@@ -423,6 +473,8 @@ class MainWindow(QMainWindow):
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
+            width = int(self.spinbox_output_image_width.value()),
+            height = int(self.spinbox_output_image_height.value()),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
         )

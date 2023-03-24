@@ -6,13 +6,15 @@ from PIL.PngImagePlugin import PngInfo
 from diffusers import StableDiffusionUpscalePipeline, DPMSolverMultistepScheduler
 
 class UpscaleWorker(QRunnable):
-    def __init__(self, image, scheduler, prompt, negative_prompt, guidance_scale, inference_step_count):
+    def __init__(self, image, scheduler, prompt, negative_prompt, width, height, guidance_scale, inference_step_count):
         super(UpscaleWorker, self).__init__()
         self._image = image.resize((512, 512))
         self._model = "stabilityai/stable-diffusion-x4-upscaler"
         self._scheduler = scheduler
         self._prompt = prompt
         self._negative_prompt = negative_prompt
+        self._width = width
+        self._height = height
         self._guidance_scale = guidance_scale
         self._inference_step_count = inference_step_count
 
@@ -35,7 +37,7 @@ class UpscaleWorker(QRunnable):
         elif self._scheduler == "DPMSolverSinglestepScheduler":
             pipeline.scheduler = DPMSolverSinglestepScheduler.from_config(pipeline.scheduler.config)
         else:
-            print(f"Pipeline not found! Defaulting to Euler Ancestral")
+            print(f"Scheduler not found! Defaulting to Euler Ancestral")
             pipeline.scheduler = EulerAncestralDiscreteScheduler.from_config(pipeline.scheduler.config)
 
         #Send to GPU
@@ -47,6 +49,8 @@ class UpscaleWorker(QRunnable):
             image = self._image,
             prompt = self._prompt,
             negative_prompt = self._negative_prompt,
+            width = self._width,
+            height = self._height,
             guidance_scale = self._guidance_scale,
             num_inference_steps = self._inference_step_count,
             ).images[0]
