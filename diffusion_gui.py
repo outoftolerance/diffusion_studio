@@ -1,10 +1,12 @@
-import sys, time
-
-from PIL import Image
+import sys, time, glob
 
 from PySide6.QtCore import Qt, QRunnable, Slot, QThreadPool 
 from PySide6.QtWidgets import *
 
+from PIL import Image
+from natsort import os_sorted
+
+from diffusion_image import DiffusionImage
 from diffusion_worker import DiffusionWorker
 from remix_worker import RemixWorker
 from iterative_remix_worker import IterativeRemixWorker
@@ -59,6 +61,14 @@ class MainWindow(QMainWindow):
             {
                 "name": "Euler",
                 "class": "EulerDiscreteScheduler",
+            },
+            {
+                "name": "Huen",
+                "class": "HeunDiscreteScheduler",
+            },
+            {
+                "name": "Linear Multistep (LMS)",
+                "class": "LMSDiscreteScheduler",
             },
             {
                 "name": "DDIM",
@@ -143,14 +153,14 @@ class MainWindow(QMainWindow):
         self.spinbox_output_image_width = QSpinBox()
         self.spinbox_output_image_width.setMinimum(128)
         self.spinbox_output_image_width.setMaximum(2048)
-        self.spinbox_output_image_width.setSingleStep(8)
+        self.spinbox_output_image_width.setSingleStep(128)
         self.spinbox_output_image_width.setValue(512)
 
         self.label_output_image_height = QLabel("Height:")
         self.spinbox_output_image_height = QSpinBox()
         self.spinbox_output_image_height.setMinimum(128)
         self.spinbox_output_image_height.setMaximum(2048)
-        self.spinbox_output_image_height.setSingleStep(8)
+        self.spinbox_output_image_height.setSingleStep(128)
         self.spinbox_output_image_height.setValue(512)
 
         self.layout_output_image_size.addWidget(self.label_output_image_width)
@@ -413,8 +423,13 @@ class MainWindow(QMainWindow):
             image_count = self.spinbox_output_image_count.value(),
         )
 
+        diffusion_worker.signals.progress.connect(self.on_worker_progress)
+        diffusion_worker.signals.result.connect(self.on_worker_result)
+        diffusion_worker.signals.finished.connect(self.on_worker_finished)
+        diffusion_worker.signals.error.connect(self.on_worker_error)
+
         #Run worker
-        self.threadpool.start(diffusion_worker)
+        self.threadpool.tryStart(diffusion_worker)
 
     def execute_remix(self):
         #Get the image
@@ -437,8 +452,13 @@ class MainWindow(QMainWindow):
             image_count = self.spinbox_output_image_count.value(),
         )
 
+        remix_worker.signals.progress.connect(self.on_worker_progress)
+        remix_worker.signals.result.connect(self.on_worker_result)
+        remix_worker.signals.finished.connect(self.on_worker_finished)
+        remix_worker.signals.error.connect(self.on_worker_error)
+
         #Run worker
-        self.threadpool.start(remix_worker)
+        self.threadpool.tryStart(remix_worker)
 
     def execute_iterative_remix(self):
         #Get the image
@@ -460,27 +480,65 @@ class MainWindow(QMainWindow):
             iterations = self.spinbox_iterative_remix_count.value(),
         )
 
+        iterative_remix_worker.signals.progress.connect(self.on_worker_progress)
+        iterative_remix_worker.signals.result.connect(self.on_worker_result)
+        iterative_remix_worker.signals.finished.connect(self.on_worker_finished)
+        iterative_remix_worker.signals.error.connect(self.on_worker_error)
+
         #Run worker
-        self.threadpool.start(iterative_remix_worker)
+        self.threadpool.tryStart(iterative_remix_worker)
 
     def execute_upscale(self):
         #Get the image
-        image = Image.open("image_dream.png").convert("RGB")
+        image = Image.open(self.lineedit_load_image.text()).convert("RGB")
 
         #Configure worker
         upscale_worker = UpscaleWorker(
             image = image,
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
-            seed = self.lineedit_seed.text(),
-            width = int(self.spinbox_output_image_width.value()),
-            height = int(self.spinbox_output_image_height.value()),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
         )
 
+        upscale_worker.signals.progress.connect(self.on_worker_progress)
+        upscale_worker.signals.result.connect(self.on_worker_result)
+        upscale_worker.signals.finished.connect(self.on_worker_finished)
+        upscale_worker.signals.error.connect(self.on_worker_error)
+
         #Run worker
-        self.threadpool.start(upscale_worker)
+        self.threadpool.tryStart(upscale_worker)
+
+    def on_worker_progress(self, progression):
+        print("Progressing...")
+
+    def on_worker_result(self, images):
+        print("Results!")
+        next_id = self.get_next_image_id()
+
+        for image in images:
+            image.set_id(next_id)
+            image.save("./output")
+            next_id += 1
+
+    def on_worker_finished(self):
+        print("Finished!")
+
+    def on_worker_error(self, error_info):
+        print("Error!")
+
+    def get_next_image_id(self):
+        existing_images = glob.glob("./output/*.png")
+
+        if len(existing_images) > 0:
+            existing_images = os_sorted(existing_images, reverse=True)
+            highest_existing_id = int(existing_images[0].split("_")[1].split(".")[0])
+            next_id = highest_existing_id + 1
+        else:
+            next_id = 0
+
+        return next_id
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
