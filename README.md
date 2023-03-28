@@ -36,8 +36,8 @@ python diffusion_gui.py
 
 ## Diffusion Settings
 
-- **Seed:** The input seed, integer in ASCII. Doesn't support hex at this time. Will auto-increment the seed by 1 for each of the output images.
-- **Lock Seed:** If checked, will lock the seed for each of the output images. Implemented for future prompt mixing with knowng good seed.
+- **Seed:** The input seed, integer or hex format, both will work. Will auto-increment the seed by 1 for each of the output images in a batch so as to have variation in the outputs.
+- **Lock Seed:** If checked, will lock the seed for each of the output images in a batch. Implemented for future prompt mixing with the same seed to get variation based on prompt rather than seed.
 - **Image Size:** Defines the size of the image to be generated for new generations. Remixes will use the size of the loaded input image.
 - **Guidance Scale:** How close you want the model to stick to your prompt, if it's generating output that you like then lower this value to stick closely to it when remixing.
 - **Inference Step Count:** The number of inference steps to perform during *Generation* or *Remixing*
