@@ -23,7 +23,14 @@ class IterativeRemixWorker(QRunnable):
         self._scheduler = scheduler
         self._prompt = prompt
         self._negative_prompt = negative_prompt
-        self._seed = seed
+
+        if seed.isnumeric():
+            self._seed = int(seed)
+        elif "0x" in seed:
+            self._seed = int(seed, 16)
+        else:
+            self._seed = None
+            
         self._seed_lock = seed_lock
         self._noise_strength = noise_strength
         self._guidance_scale = guidance_scale
@@ -73,8 +80,8 @@ class IterativeRemixWorker(QRunnable):
             generators = []
 
             #Choose to use the input seed or a random one
-            if len(self._seed) > 0:
-                seed = int(self._seed, 16)
+            if not self._seed == None:
+                seed = self._seed
             else:
                 seed = torch.Generator(device="cuda").seed()
 
