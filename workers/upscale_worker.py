@@ -2,8 +2,8 @@ import sys, traceback
 
 from PySide6.QtCore import QRunnable, Slot, QThreadPool
 
-from worker_signals import WorkerSignals
-from diffusion_image import DiffusionImage
+from workers.worker_signals import WorkerSignals
+from image import DSImage
 
 import torch
 from PIL import Image
@@ -11,7 +11,7 @@ from PIL.PngImagePlugin import PngInfo
 from diffusers import  StableDiffusionUpscalePipeline, EulerAncestralDiscreteScheduler, EulerDiscreteScheduler, HeunDiscreteScheduler, LMSDiscreteScheduler, DDIMScheduler, DDPMScheduler, DPMSolverMultistepScheduler, DPMSolverSinglestepScheduler
 
 class UpscaleWorker(QRunnable):
-    def __init__(self, image, scheduler, prompt, negative_prompt, guidance_scale, inference_step_count):
+    def __init__(self, image, scheduler, prompt, negative_prompt, seed, guidance_scale, inference_step_count):
         super(UpscaleWorker, self).__init__()
 
         #Public
@@ -23,6 +23,14 @@ class UpscaleWorker(QRunnable):
         self._scheduler = scheduler
         self._prompt = prompt
         self._negative_prompt = negative_prompt
+
+        if seed.isnumeric():
+            self._seed = int(seed)
+        elif "0x" in seed:
+            self._seed = int(seed, 16)
+        else:
+            self._seed = None
+
         self._guidance_scale = guidance_scale
         self._inference_step_count = inference_step_count
 
@@ -54,7 +62,7 @@ class UpscaleWorker(QRunnable):
 
             #Start generation
             print("Generating...")
-            image = pipeline(
+            images = pipeline(
                 image = self._image,
                 prompt = self._prompt,
                 negative_prompt = self._negative_prompt,
@@ -66,15 +74,15 @@ class UpscaleWorker(QRunnable):
             #Construct output objects
             output_images = []
             for i in range(len(images)):
-                output_image = DiffusionImage(
-                    images[i],
-                    self._model,
-                    self._scheduler,
-                    self._prompt,
-                    self._negative_prompt,
-                    generators[i].initial_seed(),
-                    self._guidance_scale,
-                    self._inference_step_count
+                output_image = DSImage(
+                    image = images[i],
+                    model = self._model,
+                    scheduler = self._scheduler,
+                    prompt = self._prompt,
+                    negative_prompt = self._negative_prompt,
+                    seed = self._seed,
+                    guidance_scale = self._guidance_scale,
+                    inference_step_count = self._inference_step_count
                 )
                 output_images.append(output_image)
         except:

@@ -6,11 +6,11 @@ from PySide6.QtWidgets import *
 from PIL import Image
 from natsort import os_sorted
 
-from diffusion_image import DiffusionImage
-from diffusion_worker import DiffusionWorker
-from remix_worker import RemixWorker
-from iterative_remix_worker import IterativeRemixWorker
-from upscale_worker import UpscaleWorker
+from image import DSImage
+from workers.diffusion_worker import DiffusionWorker
+from workers.remix_worker import RemixWorker
+from workers.iterative_remix_worker import IterativeRemixWorker
+from workers.upscale_worker import UpscaleWorker
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -317,6 +317,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.widget_main_window)
 
+    ## UI FUNCS
     def ui_slider_update(self):
         value = self.slider_noise_strength.value()
         self.lineedit_noise_strength.setText(str(value))
@@ -333,85 +334,149 @@ class MainWindow(QMainWindow):
 
         #Check for cancellation
         if len(filename[0]) == 0:
-            return
+            return False
 
+        #Update UI with selected file
         self.lineedit_load_image.setText(filename[0])
 
-        model = None
-        prompt = None
-        negative_prompt = None
-        noise_strength = None
-        guidance_scale = None
-        inference_step_count = None
+        #Load
+        image = DSImage()
+        image.open(filename[0])
 
-        image = Image.open(filename[0])
+        #Update UI with file contents
+        self.load_ui_from_image(image)
 
-        if "Model" in image.info:
-            loaded_model = image.info["Model"]
-            for model in self.diffusion_models:
-                if model["repo"] == loaded_model:
-                    self.dropdown_diffusion_model.setCurrentText(model["name"])
+        return True
+    
+    ## LOADERS
+    def load_ui_from_image(self, image):
+        self.load_model_from_image(image)
+        self.load_scheduler_from_image(image)
+        self.load_prompt_from_image(image)
+        self.load_negative_prompt_from_image(image)
+        self.load_resolution_from_image(image)
+        self.load_seed_from_image(image)
+        self.load_guidance_scale_from_image(image)
+        self.load_noise_strength_from_image(image)
+        self.load_inference_step_count_from_image(image)
 
-        if "Scheduler" in image.info:
-            loaded_scheduler = image.info["Scheduler"]
-            for scheduler in self.schedulers:
-                if scheduler["class"] == loaded_model:
-                    self.dropdown_scheduler.setCurrentText(scheduler["name"])
+    def load_model_from_image(self, image):
+        if len(image.model) > 0:
+            model = self.get_diffusion_model_from_repo(image.model)
+            if model:
+                self.dropdown_scheduler.setCurrentText(model["name"])
+                return True
+        
+        return False
 
-        if "Prompt" in image.info:
-            prompt = image.info["Prompt"]
-            self.textarea_prompt.setPlainText(prompt)
+    def load_scheduler_from_image(self, image):
+        if len(image.scheduler) > 0:
+            scheduler = self.get_scheduler_from_class(image.scheduler)
+            if scheduler:
+                self.dropdown_scheduler.setCurrentText(scheduler["name"])
+                return True
+        
+        return False
 
-        if "Negative Prompt" in image.info:
-            negative_prompt = image.info["Negative Prompt"]
-            self.textarea_negative_prompt.setPlainText(negative_prompt)
-
-        if "Seed" in image.info:
-            seed = image.info["Seed"]
-            self.lineedit_seed.setText(seed)
-
+    def load_prompt_from_image(self, image):
+        if len(image.prompt) > 0:
+            self.textarea_prompt.setPlainText(image.prompt)
+            return True
+        
+        return False
+    
+    def load_negative_prompt_from_image(self, image):
+        if len(image.negative_prompt) > 0:
+            self.textarea_negative_prompt.setPlainText(image.negative_prompt)
+            return True
+        
+        return False
+    
+    def load_resolution_from_image(self, image):
         width = image.size[0]
         self.spinbox_output_image_width.setValue(int(width))
 
         height = image.size[1]
         self.spinbox_output_image_height.setValue(int(height))
 
-        if "Noise Strength" in image.info:
-            noise_strength = image.info["Noise Strength"]
-            noise_strength_int = int(round(float(noise_strength) * 100, 0))
-            self.slider_noise_strength.setValue(noise_strength_int)
+    def load_seed_from_image(self, image):
+        if image.seed > 0:
+            self.lineedit_seed.setText(str(image.seed))
+            return True
+        
+        return False
 
-        if "Guidance Scale" in image.info:
-            guidance_scale = image.info["Guidance Scale"]
-            guidance_scale_int = int(round(float(guidance_scale) * 100, 0))
+    def load_guidance_scale_from_image(self, image):
+        if image.guidance_scale > 0:
+            guidance_scale_int = int(round(float(image.guidance_scale) * 100, 0))
             self.slider_guidance_scale.setValue(guidance_scale_int)
+            return True
 
-        if "Inference Step Count" in image.info:
-            inference_step_count = image.info["Inference Step Count"]
-            inference_step_count_int = int(inference_step_count)
+        return False
+
+    def load_noise_strength_from_image(self, image):
+        if image.noise_strength > 0:
+            noise_strength_int = int(round(float(image.noise_strength) * 100, 0))
+            self.slider_noise_strength.setValue(noise_strength_int)
+            return True
+        
+        return False
+
+    def load_inference_step_count_from_image(self, image):
+        if image.inference_step_count > 0:
+            inference_step_count_int = int(round(float(image.inference_step_count) * 100, 0))
             self.slider_inference_step_count.setValue(inference_step_count_int)
+            return True
+        
+        return False
 
-        return
-
+    ## UTILITIES
     def get_diffusion_model_from_name(self, name):
         for model in self.diffusion_models:
-            if model["name"] == self.dropdown_diffusion_model.currentText():
-                return model["repo"]
+            if model["name"] == name:
+                return model
+
+        return None
+    
+    def get_diffusion_model_from_repo(self, repo):
+        for model in self.diffusion_models:
+            if model["repo"] == repo:
+                return model
 
         return None
 
     def get_scheduler_from_name(self, name):
         for scheduler in self.schedulers:
-            if scheduler["name"] == self.dropdown_scheduler.currentText():
-                return scheduler["class"]
+            if scheduler["name"] == name:
+                return scheduler
 
         return None
+    
+    def get_scheduler_from_class(self, class_name):
+        for scheduler in self.schedulers:
+            if scheduler["class"] == class_name:
+                return scheduler
 
+        return None
+    
+    def get_next_image_id(self):
+        existing_images = glob.glob("./output/*.png")
+
+        if len(existing_images) > 0:
+            existing_images = os_sorted(existing_images, reverse=True)
+            highest_existing_id = int(existing_images[0].split("_")[1].split(".")[0])
+            next_id = highest_existing_id + 1
+        else:
+            next_id = 0
+
+        return next_id
+
+    ## DIFFUSION
     def execute_diffusion(self):
         #Configure worker
         diffusion_worker = DiffusionWorker(
-            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
-            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText())["repo"],
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText())["class"],
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
@@ -438,8 +503,8 @@ class MainWindow(QMainWindow):
         #Configure worker
         remix_worker = RemixWorker(
             image = image,
-            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
-            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText())["repo"],
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText())["class"],
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
@@ -467,8 +532,8 @@ class MainWindow(QMainWindow):
         #Configure worker
         iterative_remix_worker = IterativeRemixWorker(
             image = image,
-            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText()),
-            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
+            model = self.get_diffusion_model_from_name(self.dropdown_diffusion_model.currentText())["repo"],
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText())["class"],
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
             seed = self.lineedit_seed.text(),
@@ -495,9 +560,10 @@ class MainWindow(QMainWindow):
         #Configure worker
         upscale_worker = UpscaleWorker(
             image = image,
-            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText()),
+            scheduler = self.get_scheduler_from_name(self.dropdown_scheduler.currentText())["class"],
             prompt = self.textarea_prompt.toPlainText(),
             negative_prompt = self.textarea_negative_prompt.toPlainText(),
+            seed = self.lineedit_seed.text(),
             guidance_scale = round(self.slider_guidance_scale.value()/100.0, 2),
             inference_step_count = self.slider_inference_step_count.value(),
         )
@@ -510,6 +576,7 @@ class MainWindow(QMainWindow):
         #Run worker
         self.threadpool.tryStart(upscale_worker)
 
+    ## SIGNAL CALLBACKS
     def on_worker_progress(self, progression):
         print("Progressing...")
 
@@ -527,18 +594,6 @@ class MainWindow(QMainWindow):
 
     def on_worker_error(self, error_info):
         print("Error!")
-
-    def get_next_image_id(self):
-        existing_images = glob.glob("./output/*.png")
-
-        if len(existing_images) > 0:
-            existing_images = os_sorted(existing_images, reverse=True)
-            highest_existing_id = int(existing_images[0].split("_")[1].split(".")[0])
-            next_id = highest_existing_id + 1
-        else:
-            next_id = 0
-
-        return next_id
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
